@@ -28,11 +28,50 @@ public class GameContractTests
 	// ---- Members we read or write ----
 
 	[TestMethod]
-	public void Valuable_HasTheValueFields()
+	public void Valuable_HasTheMembersTheMagnetReads()
 	{
-		// TODO: add one RequireField / RequireMethod line for every game member this charm's effect reads, writes or patches,
-		// so a game update that renames or removes one fails here with a clear message.
 		RequireField("ValuableObject", "dollarValueCurrent");
+		RequireField("ValuableObject", "volumeType");
+		RequireField("ValuableObject", "committedToExtraction");
+		RequireField("ValuableObject", "roomVolumeCheck");
+		RequireField("ValuableObject", "physGrabObject");
+		RequireField("ValuableDirector", "instance");
+		RequireField("ValuableDirector", "valuableList");
+	}
+
+	[TestMethod]
+	public void Cart_HasTheVolumeAndContentMembers()
+	{
+		RequireField("PhysGrabCart", "inCart");
+		RequireField("PhysGrabCart", "itemsInCart");
+	}
+
+	[TestMethod]
+	public void PhysGrabObject_HasTheMembersTheMagnetReadsAndMoves()
+	{
+		RequireField("PhysGrabObject", "playerGrabbing");
+		RequireField("PhysGrabObject", "grabbed");
+		RequireField("PhysGrabObject", "dead");
+		RequireField("PhysGrabObject", "rb");
+		RequireField("PhysGrabObject", "impactDetector");
+		RequireMethod("PhysGrabObject", "Teleport", 2);
+	}
+
+	[TestMethod]
+	public void ImpactDetector_HasTheCartFlags()
+	{
+		RequireField("PhysGrabObjectImpactDetector", "isCart");
+		RequireField("PhysGrabObjectImpactDetector", "inCart");
+	}
+
+	[TestMethod]
+	public void Avatar_HasTheGrabberAndRoomMembers()
+	{
+		RequireField("PlayerAvatar", "physGrabber");
+		RequireField("RoomVolumeCheck", "CurrentRooms");
+		RequireField("RoomVolume", "Extraction");
+		RequireField("AssetManager", "physDisabledPosition");
+		RequireMethod("SemiFunc", "IsMasterClientOrSingleplayer", 0);
 	}
 
 	// ---- Helpers ----
