@@ -4,6 +4,8 @@
     "website_url":  "https://github.com/OsmarBriones/REPO-CharmMagnet",
     "description":  "Cart Magnet: while you hold a cart, loose small valuables nearby jump into it. Needs Pockets and CharmCore. Everyone in the lobby needs it.",
     "dependencies":  [
-                         "BepInEx-BepInExPack-5.4.2304"
+                         "BepInEx-BepInExPack-5.4.2304",
+                         "OsmarBriones-Pockets-1.0.1",
+                         "OsmarBriones-CharmCore-1.0.0"
                      ]
 }

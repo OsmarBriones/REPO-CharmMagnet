@@ -1,49 +1,24 @@
 # CharmMagnet Architecture
 
-This document describes the runtime structure, data flow, and design decisions for this mod.
+A Charm mod (layer 3 of the PocketCharms family): one valuable, one power. It depends on **Pockets** (storage) and **CharmCore** (registry, wear, cooldown display, host settings, debug mode).
 
----
+## The power: Cart Magnet
 
-## High-Level Concept
+while you hold a cart, loose small valuables nearby jump into it.
 
-Briefly summarize what this mod does:
-1. **Trigger / Hook:** What game event or lifecycle point triggers mod logic.
-2. **Authority / Networking:** Specify if logic runs host-only (singleplayer/master client) or on all clients.
-3. **Outcome:** What changes in the game (item spawned, enemy stunned, stats adjusted, etc.).
+- `MagnetCharm : Charm` registers the prefab name `Valuable Desert Magnet`, the defaults (wear 4%, cooldown none s) and any extra host-synced settings.
+- `CartMagnet` (a `MonoBehaviour` on the plugin object) detects the moment the power triggers and calls `Charm.TryUse()`.
 
----
+TODO: describe how the trigger is detected and what game members the effect reads or writes.
 
-## Main Data Flow
+## Game members used
 
-### 1. Level Start / Initialization
-- Entry point: `Patches/EnemyDirector_Start_Patch.cs` (Harmony patch on `EnemyDirector.Start`).
-- Checks `SemiFunc.RunIsLevel()` to ensure execution only in playable levels.
-- Refreshes configuration via `ConfigurationController.Reload()`.
-- Resets any per-level state or counters.
+TODO: list them; they are checked by `CharmMagnet.Tests/GameContractTests.cs`.
 
-### 2. Gameplay Events & Patches
-- Place each Harmony patch in `Patches/<TargetType>_<TargetMethod>_Patch.cs`.
-- Follow the host-only pattern where applicable:
-  ```csharp
-  if (!SemiFunc.IsMasterClientOrSingleplayer()) return;
-  ```
+## Debug mode
 
-### 3. Shared Library Usage (RepoAPI)
-- If the mod consumes shared logic (spawning items, item keys, reflection helpers), pull only the required modules via git submodule in `external/RepoAPI` and `<Compile Include>` in `.csproj`.
-- Never duplicate generic RepoAPI code locally.
+Provided by CharmCore: the `Debug.DebugMode` setting (off by default) places the valuable on the floor at the start of each level and enables `Charm.LogDebug` output.
 
----
+## Known limits
 
-## Key Design Decisions & Invariants
-
-- **Standalone build:** This repository builds into a single self-contained DLL (`CharmMagnet.dll`).
-- **Configuration reload:** Settings reload cleanly on level transition without requiring a game restart.
-
----
-
-## Testing Strategy
-
-Follows the 3-tier testing strategy in `external/RepoKit/REPO_MODS_METHODOLOGY.md` §8:
-1. **Tier 1 (Unit tests):** Decouple pure business logic and test via a companion test project (`dotnet test`).
-2. **Tier 2 (Harmony verification):** Verify that patch targets exist in `Assembly-CSharp.dll` before deploying.
-3. **Tier 3 (In-game smoke test / Optional debug triggers):** Default validation is done simply by launching the game and observing normal gameplay. Custom hotkeys/triggers are strictly optional and off by default, only used when mechanics are rare or difficult to reach naturally.
+- Looked up by exact prefab name; a game update that renames the prefab needs a mod update.

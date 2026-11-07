@@ -32,6 +32,11 @@
     <EmbeddedResource Remove="external\**" />
     <None Remove="external\**" />
 
+    <!-- The test project lives in a subfolder and must not be compiled into the mod. -->
+    <Compile Remove="CharmMagnet.Tests\**" />
+    <EmbeddedResource Remove="CharmMagnet.Tests\**" />
+    <None Remove="CharmMagnet.Tests\**" />
+
     <!-- When consuming RepoAPI modules (after git submodule add https://github.com/OsmarBriones/RepoAPI.git external/RepoAPI):
     <Compile Include="external\RepoAPI\Items\ItemProvider.cs" />
     <Compile Include="external\RepoAPI\Items\ItemKeysProvider.cs" />
@@ -77,6 +82,19 @@
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>$(RepoManaged)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="netstandard">
+      <HintPath>$(RepoManaged)\netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Dependencies are separate packages, referenced as built DLLs and never copied next to this one. -->
+    <Reference Include="Pockets">
+      <HintPath>$(MSBuildProjectDirectory)\..\REPO-Pockets\bin\Release\net48\Pockets.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="CharmCore">
+      <HintPath>$(MSBuildProjectDirectory)\..\REPO-CharmCore\bin\Release\net48\CharmCore.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
