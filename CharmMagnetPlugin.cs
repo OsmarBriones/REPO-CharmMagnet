@@ -26,7 +26,9 @@ namespace CharmMagnet
 			// Registering binds Enabled, WearPercent, CooldownSeconds and the Debug section (DebugMode) in this mod's config file.
 			MagnetCharm charm = new MagnetCharm();
 			CharmsApi.Register(charm, Config);
-			this.gameObject.AddComponent<CartMagnet>().Charm = charm;
+			CartMagnet runtime = this.gameObject.AddComponent<CartMagnet>();
+			runtime.Charm = charm;
+			charm.Runtime = runtime;
 
 			Logger.LogInfo($"{PluginName} {PluginVersion} loaded!");
 		}

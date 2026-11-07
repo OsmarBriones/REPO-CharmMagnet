@@ -10,7 +10,7 @@ This is a HOST effect. Teleporting a world valuable only works on the master (`P
 
 - `MagnetCharm : Charm` registers the prefab and the three settings below. `WearsPerSecond` is false: wear is per valuable moved.
 - `CartMagnet` (a `MonoBehaviour` on the plugin object). In `Update`, only when `SemiFunc.IsMasterClientOrSingleplayer()`, once per `IntervalSeconds` it calls `CharmsApi.ForEachCarrier(charm, (avatar, magnet) => ...)`:
-  1. Find the cart the carrier holds: among all `PhysGrabCart` (found once per tick), the one whose `PhysGrabObject.playerGrabbing` contains `avatar.physGrabber` and whose `impactDetector.isCart` is true.
+  1. Find the cart the carrier holds: among the cached `PhysGrabCart` list, the one whose `PhysGrabObject.playerGrabbing` contains `avatar.physGrabber` and whose `impactDetector.isCart` is true.
   2. Build a `CandidateInfo` for every entry of `ValuableDirector.instance.valuableList` and keep those `MagnetRules.IsEligible` accepts, nearest first.
   3. For the first `MaxPerCarrier`: compute a spot in the cart volume, zero `rb.linearVelocity`/`angularVelocity`, call `PhysGrabObject.Teleport`, then `charm.WearValuable(magnet, charm.WearPercent)`.
 - `Domain/MagnetRules.cs` (game-free, unit tested): `IsEligible` (the candidate filter), `PlaceInBox` (position inside the box), `NextLevel` (stack layer), `IsInsideBox`.
@@ -44,7 +44,7 @@ Checked by `CharmMagnet.Tests/GameContractTests.cs`: `ValuableObject.volumeType/
 - Pulled pieces are ignored for 3 s after a move because the cart refreshes `itemsInCart`/`inCart` on a timer.
 - Nearest-first order, so the piece closest to the cart goes first.
 - No cooldown veil: the Magnet has no cooldown, wear is per valuable.
-- Carts are found with `Object.FindObjectsByType` once per pull tick only when some carrier exists (cheap at 1 Hz).
+- Carts: the game keeps no registry (`PhysGrabCart` has no static list), so they are searched once and cached (see Runtime hygiene).
 - The RepoKit submodule was not synchronised for this task (it is another repository, off limits).
 
 ## Known limits and NOT verified (nothing was run in the game)
@@ -59,3 +59,15 @@ Checked by `CharmMagnet.Tests/GameContractTests.cs`: `ValuableObject.volumeType/
 ## Debug mode
 
 Provided by CharmCore: `Debug.DebugMode` (off by default) places the Magnet on the floor at the start of each level and enables `Charm.LogDebug`; each pull logs the valuable, distance and carrier.
+
+## Runtime hygiene
+
+Checked against `RepoKit/references/runtime-hygiene.md`:
+
+1. Lifetime of references: fixed. `MagnetCharm.OnLevelEnded` now calls `CartMagnet.ClearLevelState()`, which empties `recentlyMoved`, the candidate list, the expired list, the cart cache and the collider buffer (before, `recentlyMoved` lived until pruned by time). No static field holds a game object. The reused collider buffer is emptied after use.
+2. Work frequency: ok. `Update` only decrements a timer between pulls (`IntervalSeconds`, 0.25 s minimum); nothing runs while no carrier exists (`ForEachCarrier` finds none). The pull lambda was replaced by one delegate created in the constructor, so a pull tick no longer allocates a closure.
+3. Allocations and searches: fixed. `FindObjectsByType<PhysGrabCart>` ran on every pull tick; no game list of carts exists (searched `PhysGrabCart`, `RoundDirector`, `PhysGrabObject`), so the search now runs once, is cached, and repeats at most every 5 s only while the cache is empty or holds a destroyed cart (marked `hygiene-ok`). `GetComponentsInChildren<Collider>()` allocated an array per move; it now fills a reused `List<Collider>`. The sort comparison is a cached delegate. The debug log line in the pull loop is guarded by `Charm.DebugMode`.
+4. UI: not applicable (the charm touches no UI).
+5. Patches: not applicable (no Harmony patches).
+
+Behaviour and settings are unchanged. Limit: a cart spawned mid-level while others already exist is not picked up until the cache becomes invalid. Not verified in game.

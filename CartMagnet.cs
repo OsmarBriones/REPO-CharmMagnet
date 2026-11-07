@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CharmCore.Api;
 using CharmMagnet.Domain;
@@ -22,7 +23,21 @@ namespace CharmMagnet
 		private readonly Dictionary<int, MovedRecord> recentlyMoved = new Dictionary<int, MovedRecord>();
 		private readonly List<KeyValuePair<float, ValuableObject>> candidates = new List<KeyValuePair<float, ValuableObject>>();
 		private readonly List<int> expired = new List<int>();
+		private readonly List<PhysGrabCart> carts = new List<PhysGrabCart>();
+		private readonly List<Collider> colliderBuffer = new List<Collider>();
+		private readonly Action<PlayerAvatar, ValuableObject> pullAction;
 		private float timer;
+		private float nextCartScan;
+
+		/// <summary>Seconds to wait before searching for carts again after a search that found none or found a destroyed one.</summary>
+		private const float CartScanCooldown = 5f;
+
+		private readonly Comparison<KeyValuePair<float, ValuableObject>> ByDistance = (a, b) => a.Key.CompareTo(b.Key);
+
+		public CartMagnet()
+		{
+			pullAction = PullForCarrier;
+		}
 
 		internal MagnetCharm Charm { get; set; } = null!;
 
@@ -41,21 +56,48 @@ namespace CharmMagnet
 
 			timer = Charm.IntervalSeconds.Value;
 			PruneRecent();
-			PhysGrabCart[]? carts = null;
-			CharmsApi.ForEachCarrier(Charm, (avatar, magnet) =>
-			{
-				if (carts == null)
-				{
-					carts = Object.FindObjectsByType<PhysGrabCart>(FindObjectsSortMode.None);
-				}
-
-				PullForCarrier(avatar, magnet, carts);
-			});
+			CharmsApi.ForEachCarrier(Charm, pullAction);
 		}
 
-		private void PullForCarrier(PlayerAvatar avatar, ValuableObject magnet, PhysGrabCart[] carts)
+		/// <summary>Forgets everything remembered about the level; called by the charm when a level ends.</summary>
+		internal void ClearLevelState()
 		{
-			PhysGrabCart? cart = FindHeldCart(avatar, carts);
+			recentlyMoved.Clear();
+			candidates.Clear();
+			expired.Clear();
+			carts.Clear();
+			colliderBuffer.Clear();
+			nextCartScan = 0f;
+			timer = 0f;
+		}
+
+		/// <summary>
+		/// The game keeps no list of carts, so they are searched for once and cached. The search repeats (at most every
+		/// <see cref="CartScanCooldown"/> seconds) only when the cache is empty or holds a destroyed cart; the cache is dropped with the level.
+		/// </summary>
+		private void EnsureCarts()
+		{
+			bool valid = carts.Count > 0;
+			for (int i = 0; valid && i < carts.Count; i++)
+			{
+				valid = carts[i] != null;
+			}
+
+			if (valid || Time.time < nextCartScan)
+			{
+				return;
+			}
+
+			nextCartScan = Time.time + CartScanCooldown;
+			carts.Clear();
+			// hygiene-ok: the game has no cart registry; searched once per level and cached, rescanned at most every 5 s while invalid.
+			carts.AddRange(UnityEngine.Object.FindObjectsByType<PhysGrabCart>(FindObjectsSortMode.None));
+		}
+
+		private void PullForCarrier(PlayerAvatar avatar, ValuableObject magnet)
+		{
+			EnsureCarts();
+			PhysGrabCart? cart = FindHeldCart(avatar);
 			if (cart == null || cart.inCart == null)
 			{
 				return;
@@ -76,7 +118,10 @@ namespace CharmMagnet
 				{
 					moved++;
 					Charm.WearValuable(magnet, Charm.WearPercent);
-					Charm.LogDebug($"Cart Magnet pulled {entry.Value.name} ({entry.Key:0.0} m) into the cart held by {avatar.name}");
+					if (Charm.DebugMode)
+					{
+						Charm.LogDebug($"Cart Magnet pulled {entry.Value.name} ({entry.Key:0.0} m) into the cart held by {avatar.name}");
+					}
 				}
 			}
 		}
@@ -85,7 +130,7 @@ namespace CharmMagnet
 		/// The cart this player holds. Looked up through <c>PhysGrabObject.playerGrabbing</c> of each cart, because the host fills it
 		/// for every player (GrabPlayerAddRPC) whereas <c>PhysGrabber.grabbedPhysGrabObject</c> may only be set on the owner's machine.
 		/// </summary>
-		private static PhysGrabCart? FindHeldCart(PlayerAvatar avatar, PhysGrabCart[] carts)
+		private PhysGrabCart? FindHeldCart(PlayerAvatar avatar)
 		{
 			PhysGrabber grabber = avatar.physGrabber;
 			if (grabber == null)
@@ -128,7 +173,7 @@ namespace CharmMagnet
 				}
 			}
 
-			candidates.Sort((a, b) => a.Key.CompareTo(b.Key));
+			candidates.Sort(ByDistance);
 		}
 
 		private CandidateInfo Describe(ValuableObject valuable, PhysGrabCart cart, ValuableObject magnet, Vector3 cartCenter)
@@ -194,7 +239,9 @@ namespace CharmMagnet
 			// Extents come from the colliders (world axis-aligned); the pivot may not sit at the middle of the piece.
 			Bounds bounds = new Bounds(valuable.transform.position, Vector3.zero);
 			bool any = false;
-			foreach (Collider collider in valuable.GetComponentsInChildren<Collider>())
+			colliderBuffer.Clear();
+			valuable.GetComponentsInChildren(colliderBuffer);
+			foreach (Collider collider in colliderBuffer)
 			{
 				if (collider.isTrigger)
 				{
@@ -212,11 +259,12 @@ namespace CharmMagnet
 				}
 			}
 
+			colliderBuffer.Clear();
 			Vector3 extents = any ? bounds.extents : new Vector3(0.1f, 0.1f, 0.1f);
 			Vector3 pivotOffset = any ? bounds.center - valuable.transform.position : Vector3.zero;
 
 			int level = MagnetRules.NextLevel(cart.itemsInCart.Count + RecentCountFor(cart), StackLevels);
-			LocalOffset offset = MagnetRules.PlaceInBox(size.x, size.y, size.z, extents.x, extents.y, extents.z, Random.value, Random.value, level);
+			LocalOffset offset = MagnetRules.PlaceInBox(size.x, size.y, size.z, extents.x, extents.y, extents.z, UnityEngine.Random.value, UnityEngine.Random.value, level);
 			Vector3 centerWorld = volume.position + volume.rotation * new Vector3(offset.X, offset.Y, offset.Z);
 			Vector3 target = centerWorld - pivotOffset;
 

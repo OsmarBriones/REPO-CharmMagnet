@@ -15,6 +15,17 @@ namespace CharmMagnet
 			MaxPerCarrier = AddSetting("MaxPerCarrier", 1f, 1f, 5f, "How many valuables each Magnet carrier pulls at every pull (whole numbers). Each valuable moved wears the Magnet by WearPercent.");
 		}
 
+		/// <summary>The behaviour that holds the per-level state; set by the plugin.</summary>
+		internal CartMagnet? Runtime { get; set; }
+
+		protected override void OnLevelEnded()
+		{
+			if (Runtime != null)
+			{
+				Runtime.ClearLevelState();
+			}
+		}
+
 		/// <summary>Metres from the held cart (1 to 20).</summary>
 		internal CharmSetting Radius { get; }
 
